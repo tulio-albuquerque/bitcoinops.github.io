@@ -1,0 +1,55 @@
+name: Translate Newsletters
+on:
+  pull_request:
+    types:
+      - closed
+    paths:
+      - '_posts/en/newsletters/*.md'
+
+jobs:
+  translate:
+    if: github.event.pull_request.merged == true  # Only run on merged PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python and create venv
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install deep-translator langdetect
+
+      - name: Identify changed files
+        id: changed_files
+        run: |
+          git fetch origin main
+          echo "FILES=$(git diff --name-only origin/main HEAD | grep '_posts/en/newsletters/')" >> $GITHUB_ENV
+
+      - name: Translate Markdown & Run Verification
+        run: |
+          source venv/bin/activate
+          for file in ${{ env.FILES }}; do
+            python scripts/translate.py "$file"
+          done
+
+      - name: Commit and create PR per language
+        env:
+          LANGUAGES: ${{ env.LANGUAGES }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          source venv/bin/activate
+          for lang in $LANGUAGES; do
+            for file in ${{ env.FILES }}; do
+              target_file="_posts/$lang/newsletters/$(basename $file)"
+              if git status --porcelain | grep "$target_file"; then
+                git checkout -b "translation-$lang"
+                git add "$target_file"
+                git commit -m "Add translated newsletter for $lang"
+                git push origin "translation-$lang"
+
+                gh pr create --title "Translation for $lang" --body "Automated translation of newsletter for language: $lang" --base main
+              fi
+            done
+          done
