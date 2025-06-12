@@ -26,7 +26,7 @@ jobs:
         run: |
           git fetch origin testing
           git pull origin testing  # Ensure latest merged state is reflected
-          FILES=$(git diff --name-only ${{ github.event.pull_request.merge_commit_sha }} ${{ github.event.pull_request.merge_commit_sha }})
+          FILES=$(git diff --name-only ${{ github.event.pull_request.merge_commit_sha }}~ ${{ github.event.pull_request.merge_commit_sha }})
           echo $FILES
 
       - name: Translate Markdown & Run Verification
