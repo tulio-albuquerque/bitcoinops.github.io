@@ -31,6 +31,7 @@ jobs:
         run: |
           source venv/bin/activate
           for file in ${{ env.FILES }}; do
+            echo "translating: $file"
             python scripts/translate.py "$file"
           done
 
