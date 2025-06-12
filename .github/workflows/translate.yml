@@ -24,6 +24,8 @@ jobs:
       - name: Identify changed files
         id: changed_files
         run: |
+          git fetch origin testing
+          git pull origin testing  # Ensure latest merged state is reflected
           FILES=$(git diff --name-only ${{ github.event.pull_request.merge_commit_sha }} ${{ github.event.pull_request.merge_commit_sha }})
 
       - name: Translate Markdown & Run Verification
