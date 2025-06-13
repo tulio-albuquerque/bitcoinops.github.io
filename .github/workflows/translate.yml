@@ -81,6 +81,7 @@ jobs:
             TRANSLATED_FILES=0
             for file in ${{ steps.changed_files.outputs.all_changed_files }}; do
               original_filename=$(basename "$file")
+              target_file="_posts/$lang/newsletters/$original_filename"
               
               # Check if the translated file exists and has changes
               if [ -f "$target_file" ]; then

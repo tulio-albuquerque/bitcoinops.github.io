@@ -9,7 +9,7 @@ if len(sys.argv) < 2:
     print("Error: No filename provided for translation.")
     sys.exit(1)
 
-source_file = "_posts/en/newsletters/" + sys.argv[1]
+source_file = sys.argv[1]
 languages = [lang for lang in os.listdir("_posts") if len(lang) == 2]
 languages.remove('en')
 
@@ -43,7 +43,7 @@ text_chunks = chunk_text(body)
 for lang in languages:
     target_folder = f"_posts/{lang}/newsletters/"
     os.makedirs(target_folder, exist_ok=True)  # Ensure directory exists
-    target_file = os.path.basename(source_file)
+    target_file = os.path.join(target_folder, os.path.basename(source_file))
     
     if lang == 'zh':
         lang = 'zh-TW'
