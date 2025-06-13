@@ -68,12 +68,8 @@ jobs:
       - name: Commit and Create Pull Requests
         if: steps.changed_files.outputs.any_changed == 'true'
         env:
-          # You should define the target languages in your repository's secrets
-          # or directly here, e.g., "es de fr ja"
-          LANGUAGES: ${{ env.LANGUAGES }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Languages: $LANGUAGES"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
@@ -84,6 +80,8 @@ jobs:
           # This is the key fix to prevent the "No commits between" error.
           git checkout $BASE_BRANCH
           git pull origin $BASE_BRANCH
+          
+          LANGUAGES=$(ls -d _posts/??/)
           
           for lang in $LANGUAGES; do
             # Create a unique branch name from the up-to-date base branch
