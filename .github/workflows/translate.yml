@@ -73,6 +73,7 @@ jobs:
           LANGUAGES: ${{ env.LANGUAGES }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "Languages: $LANGUAGES"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
