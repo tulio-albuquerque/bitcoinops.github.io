@@ -9,9 +9,9 @@ if len(sys.argv) < 2:
     print("Error: No filename provided for translation.")
     sys.exit(1)
 
-source_file = sys.argv[1]
-source_folder = os.path.dirname(source_file)
+source_file = "_posts/en/newsletters/" + sys.argv[1]
 languages = [lang for lang in os.listdir("_posts") if len(lang) == 2]
+languages.remove('en')
 
 CHUNK_SIZE = 5000  # Handle large markdown files
 
@@ -42,9 +42,12 @@ text_chunks = chunk_text(body)
 
 for lang in languages:
     target_folder = f"_posts/{lang}/newsletters/"
-    os.makedirs(target_folder, exist_ok=True)
+    os.makedirs(target_folder, exist_ok=True)  # Ensure directory exists
     target_file = os.path.basename(source_file)
-
+    
+    if lang == 'zh':
+        lang = 'zh-TW'
+        
     # Skip if translation already exists
     if os.path.exists(target_file):
         print(f"Skipping {source_file} for {lang} (already translated)")
@@ -53,10 +56,21 @@ for lang in languages:
     translated_chunks = [GoogleTranslator(source='en', target=lang).translate(chunk) for chunk in text_chunks]
     translated_body = "\n\n".join(translated_chunks)  # Reassemble translated text
 
+    # Validate translation output
+    if not translated_body.strip():
+        print(f"⚠ Translation failed for {source_file}, skipping save.")
+        continue
+
     # Quality check - Ensure translation is in the expected language
     if detect(translated_body) != lang:
         print(f"⚠ Warning: Translation for {source_file} might be incorrect (Expected: {lang})")
 
-    # Write translated file
-    with open(target_file, "w", encoding="utf-8") as f:
-        f.write(front_matter + translated_body)
+    # Write translated file properly
+    if lang == 'zh-TW':
+        lang = 'zh'
+    try:
+        with open(target_file, "w", encoding="utf-8") as f:
+            f.write(front_matter + translated_body)
+        print(f"✅ Successfully saved translation for {lang}: {target_file}")
+    except Exception as e:
+        print(f"❌ Error saving file for {lang}: {e}")
