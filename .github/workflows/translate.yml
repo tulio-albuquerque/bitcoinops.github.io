@@ -25,9 +25,11 @@ jobs:
 
     steps:
       # Step 1: Check out the repository's code.
-      # No need for fetch-depth: 0, as the changed-files action handles history.
+      # We need full history to switch between branches.
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Step 2: Set up Python and install translation dependencies.
       - name: Set up Python and create venv
@@ -74,7 +76,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Get the name of the base branch from the event payload (e.g., 'main')
+          BASE_BRANCH=${{ github.event.pull_request.base.ref }}
+
+          # Explicitly check out and update the base branch to ensure it's current.
+          # This is the key fix to prevent the "No commits between" error.
+          git checkout $BASE_BRANCH
+          git pull origin $BASE_BRANCH
+          
           for lang in $LANGUAGES; do
+            # Create a unique branch name from the up-to-date base branch
             BRANCH_NAME="bot/translation-$lang-$(date +%s)"
             git checkout -b $BRANCH_NAME
             
@@ -83,7 +94,7 @@ jobs:
               original_filename=$(basename "$file")
               target_file="_posts/$lang/newsletters/$original_filename"
               
-              # Check if the translated file exists and has changes
+              # Check if the translated file was actually created
               if [ -f "$target_file" ]; then
                 git add "$target_file"
                 TRANSLATED_FILES=$((TRANSLATED_FILES + 1))
@@ -98,15 +109,13 @@ jobs:
               gh pr create \
                 --title "🌐 Add '$lang' Translation for Newsletters" \
                 --body "This is an automated PR to add the '$lang' translation for recently merged newsletters." \
-                --base main # Or your default branch
+                --base $BASE_BRANCH
                 
-              # Switch back to the original branch to create the next language branch cleanly
-              git checkout -
+              # Switch back to the base branch to prepare for the next language
+              git checkout $BASE_BRANCH
             else
               echo "No new translations to commit for '$lang'."
-              # Clean up the branch if no files were added
-              git checkout -
+              # Clean up the unused branch
               git branch -D $BRANCH_NAME
             fi
           done
-
