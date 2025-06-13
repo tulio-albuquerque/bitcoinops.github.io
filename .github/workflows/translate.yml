@@ -70,7 +70,7 @@ jobs:
         env:
           # You should define the target languages in your repository's secrets
           # or directly here, e.g., "es de fr ja"
-          LANGUAGES: ${{ secrets.TARGET_LANGUAGES || 'es de fr' }}
+          LANGUAGES: ${{ env.LANGUAGES }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
