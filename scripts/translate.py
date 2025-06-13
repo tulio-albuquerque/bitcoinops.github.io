@@ -43,7 +43,7 @@ text_chunks = chunk_text(body)
 for lang in languages:
     target_folder = f"_posts/{lang}/newsletters/"
     os.makedirs(target_folder, exist_ok=True)
-    target_file = os.path.join(target_folder, os.path.basename(source_file))
+    target_file = os.path.basename(source_file)
 
     # Skip if translation already exists
     if os.path.exists(target_file):
