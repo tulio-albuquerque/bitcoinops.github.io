@@ -68,10 +68,23 @@ jobs:
       - name: Commit and Create Pull Requests
         if: steps.changed_files.outputs.any_changed == 'true'
         env:
+          # GITHUB_TOKEN is required for the gh CLI to create pull requests.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Dynamically get target languages by finding all 2-character subdirectories
+          # in the `_posts` directory, excluding the source language 'en'.
+          # This allows the workflow to automatically support new languages.
+          LANGUAGES=$(ls -d _posts/??/ | sed 's|_posts/||; s|/||' | grep -Ev '^en$' | tr '\n' ' ')
+
+          if [ -z "$LANGUAGES" ]; then
+            echo "No target languages found in _posts/. Skipping PR creation."
+            exit 0
+          fi
+          
+          echo "Found target languages to process: $LANGUAGES"
           
           # Get the name of the base branch from the event payload (e.g., 'main')
           BASE_BRANCH=${{ github.event.pull_request.base.ref }}
@@ -80,8 +93,6 @@ jobs:
           # This is the key fix to prevent the "No commits between" error.
           git checkout $BASE_BRANCH
           git pull origin $BASE_BRANCH
-          
-          LANGUAGES=$(ls -d _posts/??/)
           
           for lang in $LANGUAGES; do
             # Create a unique branch name from the up-to-date base branch
@@ -114,7 +125,9 @@ jobs:
               git checkout $BASE_BRANCH
             else
               echo "No new translations to commit for '$lang'."
-              # Clean up the unused branch
+              # Go back to the base branch and clean up the unused language branch
+              git checkout $BASE_BRANCH
               git branch -D $BRANCH_NAME
             fi
           done
+
