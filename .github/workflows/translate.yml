@@ -1,19 +1,35 @@
+# This workflow translates English newsletters when a pull request is merged.
+# It uses a dedicated action to reliably identify the changed files.
+
 name: Translate Newsletters
+
 on:
   pull_request:
     types:
+      # Only run when a pull request is closed...
       - closed
     paths:
+      # ...and only if it modified files in the English newsletters directory.
       - '_posts/en/newsletters/*.md'
 
 jobs:
   translate:
-    if: github.event.pull_request.merged == true  # Only run on merged PRs
+    # Ensure the job only runs on successfully merged PRs.
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    
+    # Define permissions for creating new pull requests later.
+    permissions:
+      contents: write
+      pull-requests: write
 
+    steps:
+      # Step 1: Check out the repository's code.
+      # No need for fetch-depth: 0, as the changed-files action handles history.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python and install translation dependencies.
       - name: Set up Python and create venv
         run: |
           python -m venv venv
@@ -21,39 +37,76 @@ jobs:
           pip install --upgrade pip
           pip install deep-translator langdetect
 
-      - name: Identify changed files
+      # Step 3: Identify changed files using a dedicated action.
+      # This is the new, more reliable method. It automatically detects
+      # all modified files within the pull request.
+      - name: Identify changed newsletter files
         id: changed_files
-        run: |
-          git fetch origin testing
-          git pull origin testing  # Ensure latest merged state is reflected
-          FILES=$(git diff --name-only ${{ github.event.pull_request.merge_commit_sha }}~ ${{ github.event.pull_request.merge_commit_sha }} -- '_posts/en/newsletters/*.md')
-          echo "FILES=$FILES" >> $GITHUB_ENV
+        uses: tj-actions/changed-files@v44 # Using a stable version
+        with:
+          # We only want the names of the files that were modified.
+          files: '_posts/en/newsletters/*.md'
 
-      - name: Translate Markdown & Run Verification
-        if: ${{ env.FILES }} != ''
+      # Step 4: Translate the identified Markdown files.
+      # This step only runs if the previous step found matching files.
+      - name: Translate Markdown Files
+        if: steps.changed_files.outputs.any_changed == 'true'
+        env:
+          # Pass the space-separated list of files to the environment
+          CHANGED_FILES_LIST: ${{ steps.changed_files.outputs.all_changed_files }}
         run: |
           source venv/bin/activate
-          for file in ${{ env.FILES }}; do
-            echo "translating: $file"
+          echo "Translating the following files:"
+          echo "$CHANGED_FILES_LIST"
+          for file in $CHANGED_FILES_LIST; do
             python scripts/translate.py "$file"
           done
 
-      - name: Commit and create PR per language
+      # Step 5: Commit translations and create a pull request for each language.
+      - name: Commit and Create Pull Requests
+        if: steps.changed_files.outputs.any_changed == 'true'
         env:
-          LANGUAGES: ${{ env.LANGUAGES }}
+          # You should define the target languages in your repository's secrets
+          # or directly here, e.g., "es de fr ja"
+          LANGUAGES: ${{ secrets.TARGET_LANGUAGES || 'es de fr' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          source venv/bin/activate
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
           for lang in $LANGUAGES; do
-            for file in ${{ env.FILES }}; do
-              target_file="_posts/$lang/newsletters/$(basename $file)"
-              if git status --porcelain | grep "$target_file"; then
-                git checkout -b "translation-$lang"
+            BRANCH_NAME="bot/translation-$lang-$(date +%s)"
+            git checkout -b $BRANCH_NAME
+            
+            TRANSLATED_FILES=0
+            for file in ${{ steps.changed_files.outputs.all_changed_files }}; do
+              original_filename=$(basename "$file")
+              target_file="_posts/$lang/newsletters/$original_filename"
+              
+              # Check if the translated file exists and has changes
+              if [ -f "$target_file" ]; then
                 git add "$target_file"
-                git commit -m "Add translated newsletter for $lang"
-                git push origin "translation-$lang"
-
-                gh pr create --title "Translation for $lang" --body "Automated translation of newsletter for language: $lang" --base main
+                TRANSLATED_FILES=$((TRANSLATED_FILES + 1))
               fi
             done
+            
+            if [ $TRANSLATED_FILES -gt 0 ]; then
+              echo "Committing $TRANSLATED_FILES translated file(s) for '$lang'."
+              git commit -m "feat(i18n): Add '$lang' translations for new newsletters"
+              git push origin $BRANCH_NAME
+              
+              gh pr create \
+                --title "🌐 Add '$lang' Translation for Newsletters" \
+                --body "This is an automated PR to add the '$lang' translation for recently merged newsletters." \
+                --base main # Or your default branch
+                
+              # Switch back to the original branch to create the next language branch cleanly
+              git checkout -
+            else
+              echo "No new translations to commit for '$lang'."
+              # Clean up the branch if no files were added
+              git checkout -
+              git branch -D $BRANCH_NAME
+            fi
           done
+
