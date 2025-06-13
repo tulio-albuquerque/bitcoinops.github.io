@@ -26,10 +26,11 @@ jobs:
         run: |
           git fetch origin testing
           git pull origin testing  # Ensure latest merged state is reflected
-          FILES=$(git diff --name-only ${{ github.event.pull_request.merge_commit_sha }}~ ${{ github.event.pull_request.merge_commit_sha }})
-          echo $FILES
+          FILES=$(git diff --name-only ${{ github.event.pull_request.merge_commit_sha }}~ ${{ github.event.pull_request.merge_commit_sha }} -- '_posts/en/newsletters/*.md')
+          echo "FILES=$FILES" >> $GITHUB_ENV
 
       - name: Translate Markdown & Run Verification
+        if: ${{ env.FILES }} != ''
         run: |
           source venv/bin/activate
           for file in ${{ env.FILES }}; do
